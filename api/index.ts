@@ -1,15 +1,15 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { APIServer } from '../dist/src/api/server.js';
 import { Application } from '../dist/src/app/index.js';
-import { logger } from '../dist/src/app/logger.js';
+import { logger, initLogger } from '../dist/src/app/logger.js';
 import { initConfig, getLogConfig } from '../dist/src/app/config.js';
 
 // Initialize config in server mode
 initConfig('server');
 
-// Initialize logger
+// Initialize logger BEFORE using it
 const logConfig = getLogConfig();
-logger.level = logConfig.level;
+initLogger(logConfig);
 
 let expressApp: any = null;
 
