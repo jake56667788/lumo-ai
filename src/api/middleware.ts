@@ -2,12 +2,18 @@ import type { RequestHandler } from 'express';
 import { logger } from '../app/logger.js';
 import { getMetrics, type MetricsService } from '../app/metrics.js';
 
-export function setupAuthMiddleware(apiKey: string): RequestHandler {
+export function setupAuthMiddleware(apiKey?: string): RequestHandler {
   return (req, res, next) => {
     // Skip auth for health and metrics endpoints.
     // Note: /health exposes auth status details (method, warnings, last error).
     // Keep this endpoint on a non-public port if that's a concern.
     if (req.path === '/health' || req.path === '/metrics') {
+      return next();
+    }
+
+    // If no API key is configured, allow all requests (serverless/dev mode).
+    // WARNING: Only safe when the deployment is otherwise protected.
+    if (!apiKey) {
       return next();
     }
 

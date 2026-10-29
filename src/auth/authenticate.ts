@@ -29,7 +29,7 @@ import type { AuthMethod } from './types.js';
 import { print } from '../app/terminal.js';
 
 const numToMethod: Record<string, AuthMethod> = { '1': 'login', '2': 'browser', '3': 'rclone' };
-const methodToNum: Record<AuthMethod, string> = { login: '1', browser: '2', rclone: '3' };
+const methodToNum: Record<AuthMethod, string> = { login: '1', browser: '2', rclone: '3', environment: '4' };
 
 /**
  * Prompt user to select authentication method

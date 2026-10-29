@@ -4,7 +4,7 @@
 
 import type { ProtonApi, CachedUserKey, CachedMasterKey } from '../lumo-client/types.js';
 
-export type AuthMethod = 'login' | 'browser' | 'rclone';
+export type AuthMethod = 'login' | 'browser' | 'rclone' | 'environment';
 
 /**
  * Unified token storage format

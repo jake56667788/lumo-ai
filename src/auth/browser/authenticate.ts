@@ -4,10 +4,11 @@
  * Extracts auth tokens from an existing browser session via CDP.
  * This module exports functions that can be called programmatically
  * (by AuthManager for scheduled refresh) or via CLI (tamer auth browser).
+ *
+ * NOTE: Requires Playwright to be installed. Not compatible with serverless environments.
  */
 
 import * as readline from 'readline';
-import { chromium, type Page, type BrowserContext, type Browser } from 'playwright';
 import { promises as dns, ADDRCONFIG } from 'dns';
 import type { PersistedSessionData } from '../../lumo-client/types.js';
 import type { StoredTokens } from '../types.js';
@@ -18,6 +19,29 @@ import { logger } from '../../app/logger.js';
 import { decryptPersistedSession } from '../session-keys.js';
 import { writeVault, type VaultKeyConfig } from '../vault/index.js';
 import { resolveProjectPath } from '../../app/paths.js';
+
+// Playwright is an optional dependency - only needed for browser auth.
+// It is loaded lazily so serverless deployments don't require it.
+type AnyBrowser = any;
+type AnyPage = any;
+type AnyBrowserContext = any;
+type AnyChromium = any;
+
+let playwrightModule: any = null;
+async function loadPlaywright(): Promise<any> {
+    if (playwrightModule) return playwrightModule;
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        playwrightModule = require('playwright');
+        return playwrightModule;
+    } catch {
+        throw new Error(
+            'Playwright is not installed. Browser authentication requires it.\n' +
+            'Install it with: npm install playwright\n' +
+            '(Not supported in serverless environments like Vercel.)'
+        );
+    }
+}
 
 export interface ExtractionOptions {
     /** CDP endpoint to connect to browser */
@@ -126,7 +150,7 @@ function extractPersistedSession(
  * Fetch ClientKey from Proton API via browser context
  */
 async function fetchClientKey(
-    page: Page,
+    page: AnyPage,
     uid: string,
     accessToken: string,
     appVersion: string
@@ -135,7 +159,7 @@ async function fetchClientKey(
         const currentUrl = page.url();
         logger.debug({ currentUrl, uid: uid.slice(0, 8) + '...' }, 'Fetching ClientKey');
 
-        const result = await page.evaluate(async ({ uid, accessToken, appVersion }) => {
+        const result = await page.evaluate(async ({ uid, accessToken, appVersion }: any) => {
             try {
                 const response = await fetch('/api/auth/v4/sessions/local/key', {
                     method: 'GET',
@@ -168,7 +192,7 @@ async function fetchClientKey(
                 await page.goto(PROTON_URLS.ACCOUNT_BASE, { waitUntil: 'domcontentloaded' });
                 await page.waitForTimeout(500);
 
-                const retryResult = await page.evaluate(async ({ uid, accessToken, appVersion }) => {
+                const retryResult = await page.evaluate(async ({ uid, accessToken, appVersion }: any) => {
                     try {
                         const response = await fetch('/api/auth/v4/sessions/local/key', {
                             method: 'GET',
@@ -216,7 +240,7 @@ async function fetchClientKey(
  * Fetch user info (including keys) from Proton API via browser
  */
 async function fetchUserInfo(
-    page: Page,
+    page: AnyPage,
     uid: string,
     accessToken: string,
     appVersion: string
@@ -230,7 +254,7 @@ async function fetchUserInfo(
             await page.waitForTimeout(500);
         }
 
-        const result = await page.evaluate(async ({ uid, accessToken, appVersion }) => {
+        const result = await page.evaluate(async ({ uid, accessToken, appVersion }: any) => {
             try {
                 const response = await fetch('/api/core/v4/users', {
                     method: 'GET',
@@ -276,7 +300,7 @@ async function fetchUserInfo(
  * Fetch master keys from Lumo API via browser
  */
 async function fetchMasterKeys(
-    page: Page,
+    page: AnyPage,
     uid: string,
     accessToken: string,
     appVersion: string
@@ -290,7 +314,7 @@ async function fetchMasterKeys(
             await page.waitForTimeout(500);
         }
 
-        const result = await page.evaluate(async ({ uid, accessToken, appVersion }) => {
+        const result = await page.evaluate(async ({ uid, accessToken, appVersion }: any) => {
             try {
                 const response = await fetch('/api/lumo/v1/masterkeys', {
                     method: 'GET',
@@ -325,7 +349,7 @@ async function fetchMasterKeys(
 
         const masterKeys = result.masterKeys?.MasterKeys ?? [];
         logger.info({ count: masterKeys.length }, 'Successfully fetched master keys');
-        return masterKeys.map((k: { ID: string; MasterKey: string; IsLatest: boolean; Version: number }) => ({
+        return masterKeys.map((k: any) => ({
             ID: k.ID,
             MasterKey: k.MasterKey,
             IsLatest: k.IsLatest,
@@ -344,11 +368,12 @@ async function connectAndGetPage(
     cdpEndpoint: string,
     targetUrl: string,
     loginTimeout: number
-): Promise<{ browser: Browser; context: BrowserContext; page: Page }> {
+): Promise<{ browser: AnyBrowser; context: AnyBrowserContext; page: AnyPage }> {
+    const pw = await loadPlaywright();
     const resolvedEndpoint = await resolveCdpEndpoint(cdpEndpoint);
     logger.info({ cdpEndpoint, resolvedEndpoint }, 'Connecting to browser');
 
-    const browser = await chromium.connectOverCDP(resolvedEndpoint);
+    const browser = await pw.chromium.connectOverCDP(resolvedEndpoint);
 
     const contexts = browser.contexts();
     if (contexts.length === 0) {
@@ -368,8 +393,8 @@ async function connectAndGetPage(
         !/account\.proton/i.test(url);
 
     let page =
-        pages.find(p => isLumoLoggedIn(p.url())) ||
-        pages.find(p => p.url().includes('lumo.proton.me'));
+        pages.find((p: AnyPage) => isLumoLoggedIn(p.url())) ||
+        pages.find((p: AnyPage) => p.url().includes('lumo.proton.me'));
 
     if (!page) {
         logger.info({ targetUrl }, 'No Lumo page found, navigating...');
@@ -439,7 +464,7 @@ export async function extractBrowserTokens(options: ExtractionOptions): Promise<
         const state = await context.storageState();
 
         // Filter relevant cookies
-        const relevantCookies = state.cookies.filter(c =>
+        const relevantCookies = state.cookies.filter((c: any) =>
             c.domain.includes('proton.me') ||
             c.domain.includes('proton.ch')
         );
@@ -448,10 +473,10 @@ export async function extractBrowserTokens(options: ExtractionOptions): Promise<
 
         // Find all AUTH cookies (we'll select the right one after determining active session)
         const lumoAuthCookies = relevantCookies.filter(
-            c => c.name.startsWith('AUTH-') && c.domain.includes('lumo.proton.me')
+            (c: any) => c.name.startsWith('AUTH-') && c.domain.includes('lumo.proton.me')
         );
         const accountAuthCookies = relevantCookies.filter(
-            c => c.name.startsWith('AUTH-') && c.domain.includes('account.proton.me')
+            (c: any) => c.name.startsWith('AUTH-') && c.domain.includes('account.proton.me')
         );
 
         if (lumoAuthCookies.length === 0) {
@@ -461,8 +486,8 @@ export async function extractBrowserTokens(options: ExtractionOptions): Promise<
         logger.info({ lumoAuthCount: lumoAuthCookies.length, accountAuthCount: accountAuthCookies.length }, 'Found AUTH cookies');
 
         // Extract localStorage from origins
-        const lumoOrigin = state.origins.find(o => o.origin.includes('lumo.proton.me'));
-        const accountOrigin = state.origins.find(o => o.origin.includes('account.proton.me'));
+        const lumoOrigin = state.origins.find((o: any) => o.origin.includes('lumo.proton.me'));
+        const accountOrigin = state.origins.find((o: any) => o.origin.includes('account.proton.me'));
 
         const localStorage: Record<string, string> = {};
         const accountLocalStorage: Record<string, string> = {};
@@ -513,8 +538,8 @@ export async function extractBrowserTokens(options: ExtractionOptions): Promise<
 
         if (activeSessionUid) {
             // Try to find AUTH cookie matching the active session
-            primaryLumoAuthCookie = lumoAuthCookies.find(c => c.name === `AUTH-${activeSessionUid}`);
-            primaryAccountAuthCookie = accountAuthCookies.find(c => c.name === `AUTH-${activeSessionUid}`);
+            primaryLumoAuthCookie = lumoAuthCookies.find((c: any) => c.name === `AUTH-${activeSessionUid}`);
+            primaryAccountAuthCookie = accountAuthCookies.find((c: any) => c.name === `AUTH-${activeSessionUid}`);
 
             if (!primaryLumoAuthCookie) {
                 throw new Error(
@@ -566,9 +591,9 @@ export async function extractBrowserTokens(options: ExtractionOptions): Promise<
             // Fetch ClientKey and decrypt blob to get keyPassword
             if (persistedSession?.blob) {
                 const matchingAuthCookie = relevantCookies.find(
-                    c => c.name === `AUTH-${persistedSession.UID}` && c.domain.includes('account.proton.me')
+                    (c: any) => c.name === `AUTH-${persistedSession.UID}` && c.domain.includes('account.proton.me')
                 ) || relevantCookies.find(
-                    c => c.name === `AUTH-${persistedSession.UID}` && c.domain.includes('lumo.proton.me')
+                    (c: any) => c.name === `AUTH-${persistedSession.UID}` && c.domain.includes('lumo.proton.me')
                 );
 
                 const authCookie = matchingAuthCookie || primaryAccountAuthCookie || primaryLumoAuthCookie;
@@ -604,9 +629,9 @@ export async function extractBrowserTokens(options: ExtractionOptions): Promise<
             // Note: keyPassword being set implies persistedSession exists (it came from the blob)
             if (keyPassword && persistedSession) {
                 const matchingAuthCookie = relevantCookies.find(
-                    c => c.name === `AUTH-${persistedSession.UID}` && c.domain.includes('account.proton.me')
+                    (c: any) => c.name === `AUTH-${persistedSession.UID}` && c.domain.includes('account.proton.me')
                 ) || relevantCookies.find(
-                    c => c.name === `AUTH-${persistedSession.UID}` && c.domain.includes('lumo.proton.me')
+                    (c: any) => c.name === `AUTH-${persistedSession.UID}` && c.domain.includes('lumo.proton.me')
                 );
                 const authCookieForUserInfo = matchingAuthCookie || primaryAccountAuthCookie || primaryLumoAuthCookie;
 
@@ -615,7 +640,7 @@ export async function extractBrowserTokens(options: ExtractionOptions): Promise<
                     const accessToken = authCookieForUserInfo.value;
                     const userInfo = await fetchUserInfo(page, uid, accessToken, appVersion);
                     if (userInfo?.User?.Keys) {
-                        userKeys = userInfo.User.Keys.map(k => ({
+                        userKeys = userInfo.User.Keys.map((k: any) => ({
                             ID: k.ID,
                             PrivateKey: k.PrivateKey,
                             Primary: k.Primary,
@@ -629,7 +654,7 @@ export async function extractBrowserTokens(options: ExtractionOptions): Promise<
             // Fetch master keys (only if we got keyPassword)
             if (keyPassword && persistedSession) {
                 const lumoAuthForMasterKeys = relevantCookies.find(
-                    c => c.name === `AUTH-${persistedSession.UID}` && c.domain.includes('lumo.proton.me')
+                    (c: any) => c.name === `AUTH-${persistedSession.UID}` && c.domain.includes('lumo.proton.me')
                 ) || primaryLumoAuthCookie;
 
                 if (lumoAuthForMasterKeys) {
@@ -652,7 +677,7 @@ export async function extractBrowserTokens(options: ExtractionOptions): Promise<
 
         if (persistedSession) {
             const matchingLumoAuth = relevantCookies.find(
-                c => c.name === `AUTH-${persistedSession.UID}` && c.domain.includes('lumo.proton.me')
+                (c: any) => c.name === `AUTH-${persistedSession.UID}` && c.domain.includes('lumo.proton.me')
             );
             if (matchingLumoAuth) {
                 outputUid = matchingLumoAuth.name.replace('AUTH-', '');
@@ -664,13 +689,13 @@ export async function extractBrowserTokens(options: ExtractionOptions): Promise<
         // Extract REFRESH cookie for token refresh without browser
         // The REFRESH-{uid} cookie contains the refresh token in JSON format
         // Cookie is set on account.proton.me with path /api/auth/refresh
-        const allRefreshCookies = relevantCookies.filter(c => c.name.startsWith('REFRESH-'));
+        const allRefreshCookies = relevantCookies.filter((c: any) => c.name.startsWith('REFRESH-'));
         logger.trace({
             count: allRefreshCookies.length,
-            cookies: allRefreshCookies.map(c => ({ name: c.name, domain: c.domain }))
+            cookies: allRefreshCookies.map((c: any) => ({ name: c.name, domain: c.domain }))
         }, 'Found REFRESH cookies');
 
-        const refreshCookie = allRefreshCookies.find(c => c.name === `REFRESH-${outputUid}`);
+        const refreshCookie = allRefreshCookies.find((c: any) => c.name === `REFRESH-${outputUid}`);
 
         let refreshToken: string | undefined;
         if (refreshCookie) {
@@ -682,7 +707,7 @@ export async function extractBrowserTokens(options: ExtractionOptions): Promise<
                 logger.warn({ error: e }, 'Failed to parse REFRESH cookie');
             }
         } else {
-            logger.warn({ uid: outputUid.slice(0, 8) + '...', availableRefresh: allRefreshCookies.map(c => c.name) },
+            logger.warn({ uid: outputUid.slice(0, 8) + '...', availableRefresh: allRefreshCookies.map((c: any) => c.name) },
                 'No REFRESH cookie found for active session - token refresh will require re-extraction');
         }
 

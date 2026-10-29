@@ -48,8 +48,16 @@ if (args._[0] === 'auth') {
   await runAuthCommand(args._.slice(1));
   process.exit(0);
 } else if (args._[0] === 'server') {
+  // Check if running in serverless environment
+  const isServerless = !!process.env.LUMO_TAMER_UID;
+  
   const { Application } = await import('./app/index.js');
   const { APIServer } = await import('./api/server.js');
+
+  if (isServerless) {
+    logger.info('Running in serverless mode via API route - use Vercel deployment instead of direct execution');
+    process.exit(1);
+  }
 
   logger.info('Starting lumo-tamer API Server...');
 

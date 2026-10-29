@@ -31,6 +31,14 @@ export class APIServer {
     this.setupRoutes();
   }
 
+  /**
+   * Get the underlying Express app.
+   * Useful for serverless adapters that handle listening themselves.
+   */
+  getExpressApp(): express.Application {
+    return this.expressApp;
+  }
+
   private setupMiddleware(): void {
     this.expressApp.use(express.json({ limit: this.serverConfig.bodyLimit }));
     this.expressApp.use(setupAuthMiddleware(this.serverConfig.apiKey));
@@ -71,16 +79,28 @@ export class APIServer {
     };
   }
 
-  async start(): Promise<void> {
+  /**
+   * Validate configuration and prepare the server for requests.
+   * Does not bind a port — safe for serverless environments.
+   */
+  async initialize(): Promise<void> {
     const { validateTemplateOnce } = await import('./instructions.js');
     validateTemplateOnce(this.serverConfig.instructions.template);
+  }
+
+  /**
+   * Bind to a TCP port (long-running server mode).
+   * Not used in serverless environments.
+   */
+  async start(): Promise<void> {
+    await this.initialize();
 
     return new Promise((resolve) => {
       this.expressApp.listen(this.serverConfig.port, () => {
         logger.info('========================================');
         logger.info('lumo-tamer is ready!');
         logger.info(`  base_url: http://localhost:${this.serverConfig.port}/v1`);
-        logger.info(`  api_key:  ${this.serverConfig.apiKey.substring(0, 3)}...`);
+        logger.info(`  api_key:  ${this.serverConfig.apiKey ? this.serverConfig.apiKey.substring(0, 3) + '...' : '(disabled)'}`);
         logger.info('========================================\n');
         resolve();
       });

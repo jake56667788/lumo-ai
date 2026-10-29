@@ -415,6 +415,7 @@ See [docs/](docs/) for detailed documentation:
 - [Local Actions](docs/local-actions.md): CLI file operations and code execution
 - [Development](docs/development.md): Development setup and workflow
 - [Upstream Files](docs/upstream.md): Proton WebClients files, shims and path aliases
+- **Vercel Deployment**: See [VERCEL_DEPLOYMENT.md](VERCEL_DEPLOYMENT.md) for serverless hosting guide
 
 ## Roadmap
 

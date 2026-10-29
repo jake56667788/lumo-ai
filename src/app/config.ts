@@ -138,7 +138,7 @@ const serverMergedConfigSchema = z.object({
   metrics: metricsConfigSchema,
   bodyLimit: byteSizeSchema,
   port: z.number().int().positive(),
-  apiKey: z.string().min(1, 'server.apiKey is required'),
+  apiKey: z.string().optional(),
   apiModelName: z.string().min(1),
   defaultModelTier: z.enum(['auto', 'lumo-lite', 'lumo-max']),
   allowedModels: z.array(z.string().min(1)).min(1),

@@ -29,6 +29,7 @@ import type {
     CachedUserKey,
     CachedMasterKey,
 } from '../types.js';
+import { createEnvironmentAuthProvider } from './environment.js';
 
 export interface ProviderConfig {
     vaultPath: string;
@@ -67,16 +68,37 @@ export class AuthProvider implements IAuthProvider {
     protected config: ProviderConfig;
 
     /**
-     * Create an auth provider by loading tokens from vault.
-     * Returns BrowserAuthProvider for browser method, AuthProvider otherwise.
+     * Create an auth provider by loading tokens from vault OR environment.
+     * In serverless environments (Vercel), checks for environment variables first.
+     * Returns EnvironmentAuthProvider for serverless, BrowserAuthProvider for browser method, AuthProvider otherwise.
      */
     static async create(): Promise<AuthProvider> {
+        // Check for serverless environment variables first
+        const hasEnvAuth = process.env.LUMO_TAMER_UID && process.env.LUMO_TAMER_ACCESS_TOKEN;
+        
+        if (hasEnvAuth) {
+            logger.info('Detected serverless environment - using EnvironmentAuthProvider');
+            return createEnvironmentAuthProvider();
+        }
+
+        // Fall back to vault-based authentication
         const config = getProviderConfig();
 
         if (!existsSync(config.vaultPath)) {
+            // Provide helpful error message for missing vault
             throw new Error(
                 `Vault not found: ${config.vaultPath}\n` +
-                'Run: tamer auth'
+                '\n' +
+                'To authenticate, run:\n' +
+                '  1. Locally: tamer auth (follow browser auth flow)\n' +
+                '\n' +
+                'For serverless/Vercel deployment, set these environment variables:\n' +
+                '  LUMO_TAMER_UID=your-user-id\n' +
+                '  LUMO_TAMER_ACCESS_TOKEN=your-access-token\n' +
+                '  LUMO_TAMER_REFRESH_TOKEN=refresh-token (optional but recommended)\n' +
+                '  LUMO_TAMER_KEY_PASSWORD=key-password (optional, for encrypted conversations)\n' +
+                '\n' +
+                'See README.md for instructions on extracting tokens.'
             );
         }
 
