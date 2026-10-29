@@ -44,9 +44,14 @@ function getTransport(config: LogConfig): pino.TransportSingleOptions | pino.Tra
 
 // Create logger instance with given config
 export function createLogger(config: LogConfig): pino.Logger {
+  // Serverless environments (Vercel, AWS Lambda, etc.) don't support
+  // worker-thread based transports like pino-pretty. Fall back to plain
+  // pino which writes JSON directly to stdout.
+  const isServerless = !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+
   return pino({
     level: config.level,
-    transport: getTransport(config),
+    ...(isServerless ? {} : { transport: getTransport(config) }),
     // The codebase uses `error` (not `err`) for error objects in log calls.
     // Pino only auto-serializes the `err` key, so we register the same
     // serializer for `error` to get proper message/stack extraction.
