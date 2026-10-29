@@ -1,439 +1,329 @@
-# lumo-tamer
+# lumo-tamer ☁️
+
+> **Deploy Lumo to Vercel in 5 Minutes** – Use Proton's private AI on any platform without installing Node.js or Go locally.
 
 ```
                         ┌─────────────────┐     ┌─────────────────┐
 ┌─────────────────┐     │   lumo-tamer    │◄───►│  Home Assistant │
-│  Proton Lumo    │     │                 │     └─────────────────┘
-│                 │     │   Translation   │     ┌─────────────────┐
-│  Your favorite  │◄───►│   Encryption    │◄───►│  Open WebUI     │
-│  private AI     │     │   Tooling       │     └─────────────────┘
+│  Proton Lumo    │     │   (Vercel)      │     └─────────────────┘
 │                 │     │                 │     ┌─────────────────┐
-└─────────────────┘     │                 │◄───►│   CLI           │ 
+│  Your favorite  │◄───►│   Translation   │◄───►│  Open WebUI     │
+│  private AI     │     │   Encryption    │     └─────────────────┘
+│                 │     │   Tooling       │     ┌─────────────────┐
+└─────────────────┘     │                 │◄───►│   Mobile Apps   │ 
                         └─────────────────┘     └─────────────────┘
 ```
 
-Use [Proton Lumo](https://lumo.proton.me/) in your favorite AI-enabled app or on the command line.
+lumo-tamer is an **OpenAI-compatible API server** that lets you use Proton's private Lumo AI in any app that supports the OpenAI API format. **Deploy it to Vercel's free tier** and access Lumo from anywhere without running your own server.
 
-> **Official API support [is coming](https://www.reddit.com/r/lumo/comments/1qsa8xq/comment/o304ez3/) to Lumo!**  
-> lumo-tamer will be ported to use the new API when it becomes available, and obsolete parts will be stripped out (depending on API features such as OpenAI compatibility, tools, conversation support). If you can't wait, give lumo-tamer a go!
+## ✨ Why Vercel?
 
+- ✅ **Free Tier**: 100k requests/month, perfect for personal use
+- ✅ **Zero Maintenance**: Serverless = no servers to manage
+- ✅ **Fast**: Cold starts only happen occasionally (2-5s)
+- ✅ **Global CDN**: Fast responses worldwide
+- ✅ **Easy Setup**: GitHub → Vercel → Done
 
+---
 
-[Lumo](https://lumo.proton.me/about) is Proton's privacy-first AI assistant, powered by open-source LLMs running exclusively on Proton-controlled servers. Your prompts and responses are never logged, stored, or used for training. See Proton's [security model](https://proton.me/blog/lumo-security-model) and [privacy policy](https://proton.me/support/lumo-privacy) for details.
+## 🚀 Quick Deploy to Vercel
 
-lumo-tamer is a lightweight local proxy that talks to Proton's Lumo API using the same protocol as the official web client. All data in transit is encrypted and subject to the same privacy protections as the official client. Think "proton-bridge for Lumo".
+### Step 1: Get Your Auth Tokens (One-time setup)
 
-## Features
+You need to extract tokens from your Proton account **once** on a local machine:
 
-- OpenAI-compatible API server with experimental tool support.
-- Select the Lumo 2.0 model tier (Lite/Max) and thinking mode per request, via the OpenAI `model` and `reasoning_effort` fields.
-- Interactive CLI, let Lumo help you execute commands, read, create and edit files.
-- Sync your conversations with Proton to access them on https://lumo.proton.me or in mobile apps.
+#### Option A: Use Browser Auth (Easiest)
 
+1. **Install Node.js 18+** (temporary, only for setup)
+2. **Clone and setup:**
+   ```bash
+   git clone https://github.com/jake56667788/lumo-ai.git
+   cd lumo-ai
+   npm install
+   npm run build
+   ```
 
-## Project Status
+3. **Authenticate via browser:**
+   - Close all Chrome/Brave/Edge windows
+   - Start browser with debug mode:
+     ```powershell
+     # Windows PowerShell
+     & "C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe" --remote-debugging-port=9222
+     
+     # Or Chrome
+     & "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222
+     ```
+   - Log in to [https://lumo.proton.me](https://lumo.proton.me) in the new browser window
+   - In terminal, run:
+     ```bash
+     node dist/src/tamer.js auth browser
+     # Press Enter when prompted for CDP endpoint
+     ```
 
-This is an unofficial, personal project in early stages of development, not affiliated with or endorsed by Proton. Rough edges are to be expected. Only tested on Linux. Use of this software may violate Proton's terms of service; use at your own risk. See [Full Disclaimer](#full-disclaimer) below.
+4. **Export tokens for Vercel:**
+   ```bash
+   npx tsx scripts/export-tokens.ts
+   ```
+   
+   **Copy the output** - you'll need these values!
 
-## Prerequisites
+#### Option B: Manual Token Extraction (Advanced)
 
-- A Proton account (free works; [Lumo Plus](https://lumo.proton.me/) gives unlimited daily chats)
-- Node.js 18+ & npm
-- Go 1.24+ (for the `login` auth method)
-- Docker (optional, for containerized setup)
+If you can't run the script, manually extract from browser DevTools:
+- Console: `localStorage.getItem('ps-1')` (replace `1` with your session ID)
+- Cookies: Look for `AUTH-{uid}` and `REFRESH-{uid}` on `lumo.proton.me`
+- Extract `UID`, `access_token`, `refresh_token` from the JSON blob
 
-## Quick Start
+---
 
-### 1. Install
+### Step 2: Deploy to Vercel
 
-```bash
-git clone https://github.com/ZeroTricks/lumo-tamer.git
-cd lumo-tamer
-npm install && npm run build:all
-# Optionally install command `tamer` globally
-# If you don't, replace "tamer" with "npx lumo-tamer" in all commands
-npm link
-```
+#### 2A: Push to GitHub
 
-For Docker installation, see [Docker](#docker).
-
-### 2. Authenticate
-
-- Run `tamer auth login`
-- Enter your Proton credentials and (optionally) 2FA code.
-
-<details>
-<summary><strong>I'm asked to enter a CAPTCHA</strong></summary>
-
-Log in to Proton in a regular browser from the same IP first. This often clears the challenge. If you're still hit with a CAPTCHA challenge after, you might want to try an [alternative auth method](docs/authentication.md).
-</details>
-
-<details>
-<summary><strong>Why do I have to enter my password?</strong></summary>
-
-Proton's security model doesn't allow for a simple OAuth authentication. Your credentials are not saved or logged, and security tokens are stored encrypted.
-Alternatively, you can authenticate via:
-- **browser**: Extract tokens from a Chrome session. Required when you want to sync conversations with Lumo's webclient.
-- **rclone**: Paste tokens from an rclone configuration with proton-drive.
-
-See [docs/authentication.md](docs/authentication.md) for details and troubleshooting.
-
-</details>
-
-<details>
-<summary><strong>I get an error saying no secure key storage is available.</strong></summary>
-
-By default, lumo-tamer will encrypt fetched tokens with a password saved to your OS keychain. If this is unavailable (for example on headless environments), you can alternatively create a keyfile and guard it with your life:
+If you don't already have a GitHub repo:
 
 ```bash
-openssl rand -base64 32 > /path/to/your/lumo-vault-key
-chmod 600 /path/to/your/lumo-vault-key
+git init
+git add .
+git commit -m "Initial Vercel deployment"
+git remote add origin https://github.com/YOUR_USERNAME/lumo-ai.git
+git branch -M main
+git push -u origin main
 ```
 
-And add to `config.yaml`:
-```yaml
-auth:
-  vault:
-    keyFilePath: "/path/to/your/lumo-vault-key"
+#### 2B: Import in Vercel
+
+1. Go to **[vercel.com/new](https://vercel.com/new)**
+2. Click **"Import Git Repository"** → Select `YOUR_USERNAME/lumo-ai`
+3. **Configure Project:**
+   - **Framework Preset**: `Other`
+   - **Build Command**: `npm run build`
+   - **Output Directory**: Leave empty
+   - **Install Command**: `npm install`
+
+4. **Add Environment Variables** (CRITICAL):
+
+   Click **"Environment Variables"** and add these (replace with your values):
+
+   | Variable | Value | Required |
+   |----------|-------|----------|
+   | `LUMO_TAMER_UID` | `<your-uid>` | ✅ Yes |
+   | `LUMO_TAMER_ACCESS_TOKEN` | `<your-access-token>` | ✅ Yes |
+   | `LUMO_TAMER_REFRESH_TOKEN` | `<your-refresh-token>` | ✅ Strongly recommended |
+   | `LUMO_TAMER_KEY_PASSWORD` | `<password-if-you-have-it>` | Optional |
+   | `LUMO_TAMER_USER_KEYS` | `[...]` | Optional (JSON array) |
+   | `LUMO_TAMER_MASTER_KEYS` | `[...]` | Optional (JSON array) |
+
+   **Check all environments** (Production, Preview, Development)
+
+5. **Click "Deploy"**
+
+Wait ~2 minutes for the build to complete. Vercel will give you a URL like:
 ```
-</details>
+https://lumo-ai-username.vercel.app
+```
 
+---
 
+### Step 3: Test Your Deployment
 
-
-### 3. Run
-
+#### Health Check (No auth required)
 ```bash
-# One-shot: ask a question directly
-tamer "What is 2+2?"
-
-# Interactive CLI
-tamer
-
-# Start server
-tamer server
+curl https://lumo-ai-username.vercel.app/health
 ```
 
-
-## Usage
-
-### Server
-
-Set an API key in `config.yaml`:
-```yaml
-server:
-  apiKey: my-super-secret-key
-  port: 3003            #Optional, change listening port
-  bodyLimit: "500kb"    #Optional, adjust bodyLimit for larger client payloads
+Expected response:
+```json
+{
+  "status": "ok",
+  "auth": {
+    "method": "environment",
+    "valid": true
+  }
+}
 ```
 
-Then run:
-```bash
-tamer server
-```
+#### Test Chat API (Optional API key protection)
 
-Then, point your favorite OpenAI-compatible app to `https://yourhost:3003/v1` and provide your API key.
-See [API clients](#api-clients) for some inspiration.
+By default, lumo-tamer accepts all requests. To protect your deployment, set an API key in Vercel:
 
-> **Security:** Keep your API key private and make sure lumo-tamer is only accessible from your local network, not the internet.
+1. In `config.defaults.yaml` (before building), add:
+   ```yaml
+   server:
+     apiKey: "my-secret-key-123"
+   ```
+   
+2. Build, commit, and push to trigger redeploy
 
-> **Tip:** Run `tamer server` as a docker service or use a tool like nohup to run it in the background.
+3. Then use the API with authentication:
+   ```bash
+   curl -X POST https://lumo-ai-username.vercel.app/v1/chat/completions \
+     -H "Content-Type: application/json" \
+     -H "Authorization: Bearer my-secret-key-123" \
+     -d '{
+       "model": "lumo",
+       "messages": [{"role": "user", "content": "Hello!"}]
+     }'
+   ```
 
-### CLI
+---
 
-Talk to Lumo from the command line like you would via the web interface:
-```bash
-tamer                   # use Lumo interactively
-tamer "make me laugh"   # one-time prompt
-```
-
-To give Lumo access to your files and let it execute commands locally, set `cli.localActions.enabled: true` in `config.yaml` (see [Local Actions](#local-actions-cli)).  
-You can ask Lumo to give you a demo of its capabilities, or see this [demo chat](docs/demo-cli-chat.md).
-
-### In-chat commands
-
-Both CLI and API accept a few in-chat commands. Realistically, you'll only use `/title` and `/quit`.
-
-| Command | Description |
-|---------|-------------|
-| `/help` | Show available commands |
-| `/title <text>` | Set conversation title |
-| `/save [title]` | Save stateless request to conversation (optionally set title) |
-| `/refreshtokens` | Manually refresh auth tokens  (not needed when `auth.autoRefresh.enabled: true`) |
-| `/logout` | Revoke session and delete tokens |
-| `/quit` | Exit the app (CLI only) |
-
-## Configuration
-
-Add configuration options to `config.yaml`. Find all options in [`config.defaults.yaml`](config.defaults.yaml), but don't edit this file directly.
-
-Below is a non-exhaustive overview of the most common config sections and their options. Except for some auth settings (which are set by `tamer auth`), all settings are optional. By default, lumo-tamer is conservative: experimental or resource-heavy features are disabled. 
-
-### Global options
-
-Options in sections `log`, `conversations` and `commands` can be set globally (used by server and CLI), and can optionally be overwritten within `cli` and `server`.  
-For example: set the default log output to your terminal at the `info` level, while the CLI logs to a file instead.
-```yaml
-log:
-  # Levels: trace, debug, info, warn, error, fatal
-  level: "info"
-  # "stdout" or "file"
-  target: "stdout"
-
-cli:
-  log:
-    filePath: "lumo-tamer-cli.log"
-```
-
-### Web Search
-
-Enable Lumo's native web search (and other external tools: weather, stock, cryptocurrency):
-
-```yaml
-server:
-  enableWebSearch: true
-
-cli:
-  enableWebSearch: true
-```
-
-### Model Tiers and Thinking Mode
-
-lumo-tamer maps standard OpenAI request fields to Lumo 2.0's model tier and answer mode:
-
-- `model`: `lumo` (Proton auto-routes), `lumo-lite`, or `lumo-max`. These are advertised on `/v1/models`; an unknown model returns HTTP 400.
-- `reasoning_effort`: `high` (also `low`/`medium`) turns on thinking mode, `none` turns it off. In the Responses API, use `reasoning.effort` instead.
-
-Defaults and surfacing are configurable:
-
-```yaml
-server:
-  # Tier used when a request omits the model field: auto, lumo-lite, lumo-max
-  defaultModelTier: "auto"
-  # Models advertised on /v1/models and accepted in the model field
-  allowedModels: ["lumo", "lumo-lite", "lumo-max"]
-  reasoning:
-    # Used when a request omits reasoning_effort: "none" or "high"
-    default: "none"
-    # Forward Lumo's thinking tokens as delta.reasoning_content (streaming)
-    # or message.reasoning_content (non-streaming)
-    surfaceThinking: false
-```
-
-> **Note:** Availability of `lumo-max` and thinking mode depends on your Proton plan. Requests are end-to-end encrypted the same way as the rest of lumo-tamer.
-
-**Known limitations:**
-- `low`/`medium`/`high` effort values are equivalent: Lumo only has binary thinking on/off.
-- `"none"` is a lumo-tamer extension; standard OpenAI clients don't send it (the config default covers that case).
-- `reasoning_content` follows Deepseek's convention, not the OpenAI spec. It works with clients that support it (Cursor, Open WebUI with Deepseek config). For the Responses API, reasoning is not yet surfaced.
-
-### Instructions
-
-Customize instructions with `server.instructions.template` and `cli.instructions.template`. See [`config.defaults.yaml`](config.defaults.yaml) for more options.
-
-Instructions from API clients will be inserted in the main template. If you can, put instructions on personal preferences within your API client and only use `server.instructions` to define the internal interaction between Lumo and lumo-tamer.
-
-
-> **Note:** Under the hood, lumo-tamer injects instructions into normal messages (the same way it is done in Lumo's webclient). Instructions set in the webclient's personal or project settings will be ignored and left unchanged.
-
-### Custom Tools (Server)
-
-Let Lumo use tools provided by your OpenAI-compatible client.
-
-```yaml
-server:
-  customTools:
-    enabled: true
-```
-
-> **Warning:** Custom tool support is experimental and can fail in various ways. Experiment with `server.instructions` settings to improve results. See [Custom Tools](docs/custom-tools.md) for details, tweaking, and troubleshooting. 
-
-
-### Local Actions (CLI)
-
-Let Lumo read, create and edit files, and execute commands on your machine:
-
-```yaml
-cli:
-  localActions:
-    enabled: true
-    fileReads:
-      enabled: true
-    executors:
-      bash: ["bash", "-c"]
-      python: ["python", "-c"]
-```
-
-The CLI always asks for confirmation before executing commands or applying file changes. File reads are automatic.  
-Configure available languages for your system in `executors`. By default, `bash`, `python`, and `sh` are enabled.  
-See [Local Actions](docs/local-actions.md) for further configuration and troubleshooting.
-
-### Conversation Sync
-
-```yaml
-conversations:
-  enableSync: true
-  projectName: "lumo-tamer" # project conversations will belong to
-```
-> **Note:** Sync requires `browser` authentication.
-
-> **Warning:** Projects in Lumo have a limit on the number of conversations per project. When hit, sync will fail. Deleting conversations won't help. Use a new `projectName` as a workaround. See [#16](https://github.com/ZeroTricks/lumo-tamer/issues/16).
-
-
-## API clients
-
-The server implements a subset of OpenAI-compatible endpoints and has so far been tested with a handful of clients only.
-
-| Endpoint | Description |
-|----------|-------------|
-| `POST /v1/chat/completions` | [OpenAI chat completions](https://platform.openai.com/docs/api-reference/chat/create) |
-| `POST /v1/responses` | [OpenAI responses API](https://platform.openai.com/docs/api-reference/responses/create) |
-| `GET /v1/models` | List available models (`lumo`, `lumo-lite`, `lumo-max`) |
-| `GET /health` | Health check |
-| `GET /metrics` | [Prometheus metrics](docs/development.md#metrics) |
-
-Following API clients have been tested and are known to work.
-
-### Home Assistant
-
-See the [full guide](docs/howto-home-assistant.md). TLDR:
-
-- Pass the environment variable `OPENAI_BASE_URL=http://yourhost:3003/v1` to Home Assistant.
-- Add the OpenAI integration and create a new Voice Assistant that uses it.
-- To let Lumo control your devices, set `server.customTools.enabled: true` in `config.yaml` (Experimental, see [Custom Tools](docs/custom-tools.md)).
-- Open HA Assist in your dashboard or phone and chat away.
-
-### OpenClaw
-Add Lumo to `models.providers` in your OpenClaw config. [Example](docs/openclaw.md).
-
-### OpenCode
-Add Lumo to `models.providers` in your `opencode.json` configuration file. [Example](docs/opencode.md).
-
-### Nanocoder
-Status: very experimental.
-
-Nanocoder sends many instructions and relies on Lumo calling **a lot** of tools. Lumo will misroute many tool calls and will retry by calling tools with wrong parameters. Basic usage works, but don't expect a fully working coding assistant experience.
+## 🎯 Usage in Popular Apps
 
 ### Open WebUI
 
-For your convenience, an Open WebUI service is included in `docker-compose.yml`. Launch `docker compose up open-webui` and open `http://localhost:8080`
+1. Admin Settings → Connections → Add Provider
+2. **Base URL**: `https://lumo-ai-username.vercel.app/v1`
+3. **API Key**: `my-secret-key-123` (or leave blank if unprotected)
+4. **Models**: Add manually: `lumo`, `lumo-lite`, `lumo-max`
 
-> **Note:** Open WebUI will by default prompt Lumo for extra information (to set title and tags). Disable these in Open WebUI's settings to avoid cluttering your debugging experience.
+### VS Code / Cursor
 
-### cURL
+Use any extension that supports custom OpenAI endpoints:
 
-```bash
-curl http://localhost:3003/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_API_KEY" \
-  -d '{
-    "model": "lumo",
-    "messages": [{"role": "user", "content": "Tell me a joke."}],
-    "stream": true
-  }'
-```
+- **Base URL**: `https://lumo-ai-username.vercel.app/v1`
+- **API Key**: (same as above)
+- **Model**: `lumo`
 
-### Other API clients
+### Home Assistant
 
-Many clients are untested with lumo-tamer but should work if they only use the `/v1/responses` or `/v1/chat/completions` endpoints. As a rule of thumb: basic chatting will most likely work, but the more a client relies on custom tools, the more the experience is degraded.  
-To test an API client, increase log levels on both the client and lumo-tamer: `server.log.level: debug` and check for errors.
-
-Please share your experiences with new API clients (both issues and successes) in [the project discussions](https://github.com/ZeroTricks/lumo-tamer/discussions/new?category=general)!
-
-
-## Docker
-
-It is recommended to run lumo-tamer's server in a Docker container.
-
-### Install
-
-```bash
-git clone https://github.com/ZeroTricks/lumo-tamer.git
-cd lumo-tamer
-docker compose build tamer
-# Create secret key to encrypt the token vault (or alternatively, use another secrets manager)
-mkdir -p secrets && chmod 700 secrets
-openssl rand -base64 32 > secrets/lumo-vault-key
-chmod 600 secrets/lumo-vault-key
-```
-
-### Configure
-
-Create `config.yaml`:
-
+In `configuration.yaml`:
 ```yaml
-server:
-  apiKey: "your-secret-api-key-here"
+openai_conversation:
+  api_key: "my-secret-key-123"
+  base_url: "https://lumo-ai-username.vercel.app/v1"
+  conversation_agent: lumo
 ```
 
-> **Security:** Keep your API key private and make sure lumo-tamer is only accessible from your local network, not the internet. Disable docker port forwarding if API clients belong to the same docker network.
+### Obsidian / Other Apps
 
-### Authenticate
+Any app supporting custom OpenAI endpoints will work!
 
-```bash
-docker compose run --rm -it tamer auth login
+---
+
+## 🔧 Available Models
+
+- `lumo` - Standard Lumo model
+- `lumo-lite` - Faster, cheaper
+- `lumo-max` - Most capable (if available)
+
+## 💡 Tips & Tricks
+
+### Reduce Cold Starts
+- Keep the service warm with periodic pings (cron job every 15 min)
+- Upgrade to Vercel Pro ($20/mo) for instant cold-start-free deployments
+
+### Cost Estimation (Free Tier)
+- **50-100 messages/day**: Well within free limits
+- **Monthly cost**: $0 (free tier covers up to 100k requests)
+
+### Token Expiry
+- Access tokens expire after 24 hours
+- With `LUMO_TAMER_REFRESH_TOKEN`, auto-refresh works seamlessly
+- Without refresh token, re-run `tamer auth browser` locally every 24h
+
+---
+
+## ⚠️ Important Notes
+
+### Privacy
+- All communications are encrypted end-to-end
+- Proton logs nothing about your prompts
+- Your tokens are stored only in Vercel's environment variables (encrypted at rest)
+
+### Terms of Service
+- This is an unofficial, personal project
+- Not affiliated with or endorsed by Proton AG
+- May violate Proton's ToS; use at your own risk
+- Official API support coming soon (this will become obsolete)
+
+### Limitations
+- **Cold starts**: 2-5s delay on free tier (first request after ~15min idle)
+- **Timeout**: Max 60s per request (configure longer in Vercel paid plans)
+- **Rate limiting**: Respect Proton's rate limits (start slow)
+
+---
+
+## 🛠️ Troubleshooting
+
+### "Invalid API key"
+- Check that you set the correct key in Vercel env vars
+- If no key is set in config, API accepts all requests (no auth)
+
+### "Logger not initialized" / "Circular dependency"
+- Redeploy after pulling latest changes
+
+### "No vault found"
+- You haven't extracted tokens yet. Run the auth steps above.
+
+### "Refresh token expired"
+- Re-run `tamer auth browser` locally and update `LUMO_TAMER_REFRESH_TOKEN`
+
+---
+
+## 📚 Advanced Configuration
+
+### Custom Domain
+Add your own domain in Vercel:
+- Settings → Domains → Add domain
+- Point CNAME to your Vercel deployment
+
+### API Key Protection
+To require API key on all requests:
+
+1. Edit `config.defaults.yaml`:
+   ```yaml
+   server:
+     apiKey: "super-secret-key-change-this"
+   ```
+
+2. Commit and push to trigger redeploy
+
+3. Now all API calls require:
+   ```
+   Authorization: Bearer super-secret-key-change-this
+   ```
+
+### Disable Auto-Refresh
+If you want manual control:
+```yaml
+auth:
+  autoRefresh:
+    enabled: false
 ```
 
-Enter your Proton email, password, and 2FA code (if enabled).
+---
 
-<details>
-<summary><strong>I'm asked to enter a CAPTCHA</strong></summary>
+## 🤝 Contributing
 
-Log in to Proton in a regular browser from the same IP first. This often clears the challenge. If you're still hit with a CAPTCHA challenge after, you might want to try an [alternative auth method](docs/authentication.md).
-</details>
+This is a hobby project in active development. Contributions welcome!
 
-<details>
-<summary><strong>Why do I have to enter my password?</strong></summary>
+- Issues: Report bugs or request features
+- PRs: Submit improvements (test coverage appreciated)
+- Star: ⭐ if you find it useful!
 
-Proton's security model doesn't allow for a simple OAuth authentication. Your credentials are not saved or logged, and security tokens are stored encrypted. [Read further](docs/authentication.md#security) for more information or other authentication methods.
-</details>
+---
 
-### Run
-Server:
-```bash
-docker compose up tamer # starts server by default
-```
-CLI:
-```bash
-docker compose run --rm -it -v ./some-dir:/dir/ tamer cli
-```
+## 📄 License
 
-> **Note:** Running the CLI within Docker may not be very useful:
-> - Lumo will not have access to your files unless you mount a directory.
-> - The image is Alpine-based, so your system may not have the commands Lumo tries to run. You can change config options `cli.localActions.executors` and `cli.instructions.forLocalActions` to be more explicit what commands Lumo should use, or you can rebase the `Dockerfile`.
+MIT License - see LICENSE file for details
 
+---
 
+## 🔒 Security Disclosure
 
-## Further Reading
+This project extracts authentication tokens from browser sessions. While it encrypts them at rest, the extraction process requires physical access to your device and a logged-in browser session. This is by design - tokens must come from somewhere.
 
-See [docs/](docs/) for detailed documentation:
+**Never share your tokens or API keys publicly.**
 
-- [Authentication](docs/authentication.md): Auth methods, setup and troubleshooting
-- [Conversations](docs/conversations.md): Conversation persistence and sync
-- [Custom Tools](docs/custom-tools.md): Tool support for API clients
-- [Home Assistant Guide](docs/howto-home-assistant.md): Use Lumo as your Voice Assistant
-- [Local Actions](docs/local-actions.md): CLI file operations and code execution
-- [Development](docs/development.md): Development setup and workflow
-- [Upstream Files](docs/upstream.md): Proton WebClients files, shims and path aliases
-- **Vercel Deployment**: See [VERCEL_DEPLOYMENT.md](VERCEL_DEPLOYMENT.md) for serverless hosting guide
+---
 
-## Roadmap
+## 🙏 Credits
 
-- **Getting feedback**: I'm curious how people use lumo-tamer and what they run into.
-- **Test more API clients**: Test new & improve existing integrations with API clients.
-- **Better auth**: Make the `login` method support conversation sync; find out if SimpleLogin's OAuth can be used.
+- Built on [Proton Lumo](https://lumo.proton.me)
+- Inspired by the community's desire for API access
+- Uses Proton's existing web protocols (reverse-engineered)
 
-## Full Disclaimer
+---
 
-- **Unofficial project.** This project is not affiliated with, endorsed by, or related to Proton AG in any way.
-- **Terms of service.** Use of this software may violate Proton's terms of service.
-- **Rate limiting and token usage.** Although care was put into making the app behave, it may make many API calls, potentially getting you rate-limited, or burn through your allowed tokens quickly. I have not experienced either of these issues on Lumo Plus.
-- **Security.** This app handles Proton user secrets. Although the code is vetted to the best of my knowledge and follows best practices, this is not my area of expertise. Please verify for yourself.
-- **AI-assisted development.** This code was written with the extensive use of Claude Code.
-- **Tool execution.** Enabling tools gives Lumo the power to execute actions client-side (API or CLI). I am not responsible for Lumo's actions. lumo-tamer does not prevent prompt injection.
-
-## License
-
-GPLv3 - See [LICENSE](LICENSE). Includes code from [Proton WebClients](https://github.com/ProtonMail/WebClients).
-
-❤️
+**Enjoy your private, portable Lumo AI!** 🎉
