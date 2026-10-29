@@ -29,7 +29,6 @@ import type {
     CachedUserKey,
     CachedMasterKey,
 } from '../types.js';
-import { createEnvironmentAuthProvider } from './environment.js';
 
 export interface ProviderConfig {
     vaultPath: string;
@@ -78,6 +77,8 @@ export class AuthProvider implements IAuthProvider {
         
         if (hasEnvAuth) {
             logger.info('Detected serverless environment - using EnvironmentAuthProvider');
+            // Import dynamically to avoid circular dependency
+            const { createEnvironmentAuthProvider } = await import('./environment.js');
             return createEnvironmentAuthProvider();
         }
 

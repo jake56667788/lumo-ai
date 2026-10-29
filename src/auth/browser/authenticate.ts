@@ -31,14 +31,15 @@ let playwrightModule: any = null;
 async function loadPlaywright(): Promise<any> {
     if (playwrightModule) return playwrightModule;
     try {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        playwrightModule = require('playwright');
+        // Dynamic import for ES module compatibility
+        playwrightModule = await import('playwright');
         return playwrightModule;
-    } catch {
+    } catch (error: any) {
         throw new Error(
             'Playwright is not installed. Browser authentication requires it.\n' +
             'Install it with: npm install playwright\n' +
-            '(Not supported in serverless environments like Vercel.)'
+            `(Not supported in serverless environments like Vercel.)\n` +
+            `Error: ${error.message}`
         );
     }
 }
